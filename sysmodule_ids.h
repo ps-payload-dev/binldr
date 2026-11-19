@@ -30,3 +30,11 @@ typedef enum binldr_sysmodule_id {
   BINLDR_SYSMODULE_INTERNAL_HTTP = 0x8000000a,
   BINLDR_SYSMODULE_INTERNAL_SSL = 0x8000000b,
 } binldr_sysmodule_id_t;
+
+typedef enum binldr_public_sysmodule_id {
+  BINLDR_SYSMODULE_MESSAGE_DIALOG = 0x00a4,
+  BINLDR_SYSMODULE_IME_DIALOG = 0x0096,
+  BINLDR_SYSMODULE_SAVE_DATA_DIALOG = 0x00a0,
+  BINLDR_SYSMODULE_APP_CONTENT = 0x00b4,
+  BINLDR_SYSMODULE_NP_TROPHY = 0x00ad,
+} binldr_public_sysmodule_id_t;

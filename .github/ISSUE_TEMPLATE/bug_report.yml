@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a problem building or using binldr
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Include the exact steps and any error output you can provide.
+  - type: textarea
+    id: steps
+    attributes:
+      label: What did you do?
+      description: Include the commands or steps that reproduce the problem.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+      description: Paste error messages or output as text.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: firmware
+    attributes:
+      label: PS4 firmware
+      placeholder: e.g. 9.00
+  - type: input
+    id: loader
+    attributes:
+      label: ELF loader or exploit
+  - type: input
+    id: version
+    attributes:
+      label: binldr version
+      description: Release or output of git rev-parse --short HEAD.
+  - type: input
+    id: host
+    attributes:
+      label: Build computer and OS
+      placeholder: e.g. Ubuntu 24.04
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the open and closed issues for the same problem
+          required: true

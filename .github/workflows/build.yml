@@ -1,0 +1,46 @@
+name: Build
+
+on:
+  push:
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.txt"
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "**/*.txt"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout payload SDK
+        uses: actions/checkout@v4
+        with:
+          repository: ps-payload-dev/sdk
+          path: sdk
+
+      - name: Set up PS4 payload SDK
+        working-directory: sdk
+        run: |
+          sudo apt update
+          sudo apt install clang-18 lld-18
+          make DESTDIR=${{ runner.tool_cache }}/ps-payload-sdk clean install
+          echo PS4_PAYLOAD_SDK=${{ runner.tool_cache }}/ps-payload-sdk/ps4 >> $GITHUB_ENV
+
+      - name: Checkout binldr
+        uses: actions/checkout@v4
+
+      - name: Build binldr
+        run: make all
+
+      - name: Upload binldr
+        uses: actions/upload-artifact@v4
+        with:
+          name: binldr-ps4
+          path: |
+            build/binldr.elf
+            build/binldr.bin
+            build/lib-binldr.a
+          if-no-files-found: error

@@ -24,6 +24,7 @@ along with this program; see the file COPYING. If not, see
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <elf.h>
 #include <fcntl.h>
 #include <mutex>
 #include <netinet/in.h>
@@ -36,6 +37,7 @@ along with this program; see the file COPYING. If not, see
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <vector>
 
 #ifndef MAP_ANONYMOUS
 #define MAP_ANONYMOUS MAP_ANON
@@ -46,12 +48,13 @@ static constexpr unsigned DEFAULT_TIMEOUT = 60;
 static constexpr uint16_t ELFLDR_PORT = 9021;
 static constexpr size_t MAX_HTTP_HEADER = 8192;
 static constexpr size_t PAGE_SIZE_PS4 = 0x4000;
+static constexpr size_t MAX_REQUESTED_SYSMODULES = 32;
 
 extern "C" {
-const unsigned char binldr_elfldr_bin[];
-const unsigned long binldr_elfldr_bin_size[];
-const unsigned char binldr_binrunner_elf[];
-const unsigned long binldr_binrunner_elf_size[];
+extern const unsigned char binldr_elfldr_bin[];
+extern const unsigned long binldr_elfldr_bin_size[];
+extern const unsigned char binldr_binrunner_elf[];
+extern const unsigned long binldr_binrunner_elf_size[];
 }
 
 struct binldr_server {
@@ -62,6 +65,7 @@ struct binldr_server {
   std::atomic<int> client{ -1 };
   pthread_t thread{};
   std::mutex lifecycle;
+  std::vector<binldr_sysmodule_t> sysmodules;
 };
 
 static bool
@@ -124,6 +128,38 @@ is_elf(const uint8_t *data, size_t size) {
 }
 
 static bool
+is_legacy_elf(const uint8_t *data, size_t size) {
+  if(!is_elf(data, size) || size < sizeof(Elf64_Ehdr))
+    return false;
+  Elf64_Ehdr header;
+  memcpy(&header, data, sizeof(header));
+  if(header.e_ident[EI_CLASS] != ELFCLASS64 || header.e_machine != EM_X86_64
+     || header.e_phentsize != sizeof(Elf64_Phdr) || !header.e_phnum
+     || header.e_phnum > 128 || header.e_phoff > size
+     || (size - header.e_phoff) / sizeof(Elf64_Phdr) < header.e_phnum)
+    return false;
+  for(unsigned i = 0; i < header.e_phnum; ++i) {
+    Elf64_Phdr segment;
+    memcpy(&segment, data + header.e_phoff + i * sizeof(segment),
+           sizeof(segment));
+    if(segment.p_type != PT_DYNAMIC)
+      continue;
+    if(segment.p_offset > size || size - segment.p_offset < segment.p_filesz)
+      return false;
+    for(uint64_t offset = 0; offset + sizeof(Elf64_Dyn) <= segment.p_filesz;
+        offset += sizeof(Elf64_Dyn)) {
+      Elf64_Dyn entry;
+      memcpy(&entry, data + segment.p_offset + offset, sizeof(entry));
+      if(entry.d_tag == DT_NULL)
+        break;
+      if(entry.d_tag == DT_NEEDED)
+        return false;
+    }
+  }
+  return true;
+}
+
+static bool
 is_ps4_self(const uint8_t *data, size_t size) {
   return data && size >= 4 && data[0] == 0x4f && data[1] == 0x15
          && data[2] == 0x3d && data[3] == 0x1d;
@@ -148,15 +184,6 @@ connect_loopback(uint16_t port, unsigned timeout_seconds) {
   return fd;
 }
 
-static bool
-elfldr_listening(uint16_t port) {
-  int fd = connect_loopback(port, 1);
-  if(fd < 0)
-    return false;
-  close(fd);
-  return true;
-}
-
 static void *
 map_executable(size_t size) {
   register long flags __asm__("r10") = MAP_PRIVATE | MAP_ANONYMOUS;
@@ -175,6 +202,15 @@ map_executable(size_t size) {
     return MAP_FAILED;
   }
   return reinterpret_cast<void *>(result);
+}
+
+static bool
+elfldr_listening(uint16_t port) {
+  int fd = connect_loopback(port, 1);
+  if(fd < 0)
+    return false;
+  close(fd);
+  return true;
 }
 
 static bool
@@ -242,7 +278,7 @@ relay_binary_to_runner(binldr_server_t *server, const uint8_t *payload,
   if(!ensure_elfldr())
     return false;
 
-  char path[] = "/data/binldr-payload-XXXXXX";
+  char path[] = "/system_tmp/binldr-payload-XXXXXX";
   int file = mkstemp(path);
   if(file < 0)
     return false;
@@ -280,35 +316,71 @@ relay_binary_to_runner(binldr_server_t *server, const uint8_t *payload,
   const size_t runner_size = static_cast<size_t>(binldr_binrunner_elf_size[0]);
   bool sent = send_all(fd, binldr_binrunner_elf, runner_size)
               && send_all(fd, path, strlen(path)) && send_all(fd, "\n", 1);
+  if(sent) {
+    static const char module_magic[] = "BLDRMOD1";
+    const uint16_t module_count
+        = static_cast<uint16_t>(server->sysmodules.size());
+    sent = send_all(fd, module_magic, sizeof(module_magic) - 1)
+           && send_all(fd, &module_count, sizeof(module_count));
+    for(const binldr_sysmodule_t &module : server->sysmodules) {
+      const uint8_t kind = module.internal ? 1 : 0;
+      sent = sent && send_all(fd, &kind, sizeof(kind))
+             && send_all(fd, &module.id, sizeof(module.id));
+    }
+  }
   int saved = errno;
   shutdown(fd, SHUT_WR);
 
   bool ready = false;
+  bool timed_out = false;
   if(sent) {
     static const char marker[] = "PAYLOAD_READY\n";
     char buffer[512];
-    std::string response;
-    while(response.size() < 4096) {
+    size_t matched = 0;
+    timeval timeout{};
+    timeout.tv_sec
+        = static_cast<time_t>(server->config.request_timeout_seconds);
+    if(setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout))) {
+      saved = errno;
+      sent = false;
+    }
+    errno = 0;
+    while(sent && !ready) {
       ssize_t count = recv(fd, buffer, sizeof(buffer), 0);
       if(count < 0 && errno == EINTR)
         continue;
-      if(count <= 0)
-        break;
-      response.append(buffer, static_cast<size_t>(count));
-      if(response.find(marker) != std::string::npos) {
-        ready = true;
+      if(count < 0
+         && (errno == EAGAIN || errno == EWOULDBLOCK || errno == ETIMEDOUT)) {
+        timed_out = true;
         break;
       }
+      if(count <= 0)
+        break;
+      for(ssize_t i = 0; i < count; ++i) {
+        if(buffer[i] == marker[matched]) {
+          if(++matched == sizeof(marker) - 1) {
+            ready = true;
+            break;
+          }
+        } else {
+          matched = buffer[i] == marker[0] ? 1 : 0;
+        }
+      }
     }
-    if(!ready && errno == 0)
-      errno = EIO;
   }
-  if(!ready)
+  const bool pending = sent && !ready && timed_out;
+  // The runner can still start after its acknowledgement deadline. Keep the
+  // staged payload only for that timeout; an early close means it failed.
+  if(!ready && !pending)
     unlink(path);
   close(fd);
-  if(!ready && errno == 0)
-    errno = saved ? saved : EIO;
-  return ready;
+  if(!ready && !pending) {
+    if(!sent)
+      errno = saved ? saved : EIO;
+    else
+      errno = EIO;
+  }
+  return ready || pending;
 }
 
 static void
@@ -519,7 +591,8 @@ dispatch_payload(binldr_server_t *server, int fd, bool http,
                  const uint8_t *payload, size_t size) {
   char message[256] = "";
   int status = 202;
-  if(is_ps4_self(payload, size) || is_elf(payload, size)) {
+  if(is_ps4_self(payload, size)
+     || (is_elf(payload, size) && !is_legacy_elf(payload, size))) {
     if(!relay_to_elfldr(server, payload, size)) {
       snprintf(message, sizeof(message),
                "Could not forward payload to ELF loader: %s", strerror(errno));
@@ -698,6 +771,39 @@ binldr_stop(binldr_server_t *server) {
 extern "C" int
 binldr_is_running(const binldr_server_t *server) {
   return server && server->started && !server->stopping;
+}
+
+extern "C" int
+binldr_set_sysmodules(binldr_server_t *server,
+                      const binldr_sysmodule_t *modules, size_t count) {
+  if(!server || (count && !modules) || count > MAX_REQUESTED_SYSMODULES) {
+    errno = EINVAL;
+    return -1;
+  }
+  std::lock_guard<std::mutex> lock(server->lifecycle);
+  if(server->started) {
+    errno = EBUSY;
+    return -1;
+  }
+  for(size_t i = 0; i < count; ++i) {
+    if((modules[i].internal != 0 && modules[i].internal != 1)
+       || (modules[i].internal && !(modules[i].id & 0x80000000u))
+       || (!modules[i].internal
+           && (!modules[i].id || modules[i].id > UINT16_MAX))) {
+      errno = EINVAL;
+      return -1;
+    }
+  }
+  try {
+    if(count)
+      server->sysmodules.assign(modules, modules + count);
+    else
+      server->sysmodules.clear();
+  } catch(...) {
+    errno = ENOMEM;
+    return -1;
+  }
+  return 0;
 }
 
 extern "C" void

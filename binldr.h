@@ -19,6 +19,8 @@ along with this program; see the file COPYING. If not, see
 #include <stddef.h>
 #include <stdint.h>
 
+#include "sysmodule_ids.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -28,6 +30,11 @@ typedef struct binldr_server binldr_server_t;
 typedef int (*binldr_binary_handler_t)(const uint8_t *payload, size_t size,
                                        char *message, size_t message_size,
                                        void *user_data);
+
+typedef struct binldr_sysmodule {
+  uint32_t id;
+  int internal;
+} binldr_sysmodule_t;
 
 typedef struct binldr_config {
   uint16_t port;
@@ -41,6 +48,10 @@ binldr_server_t *binldr_create(const binldr_config_t *config);
 int binldr_start(binldr_server_t *server);
 int binldr_stop(binldr_server_t *server);
 int binldr_is_running(const binldr_server_t *server);
+/* Set up to 32 required module loads before start; failure blocks BIN entry.
+ */
+int binldr_set_sysmodules(binldr_server_t *server,
+                          const binldr_sysmodule_t *modules, size_t count);
 void binldr_destroy(binldr_server_t *server);
 
 #ifdef __cplusplus

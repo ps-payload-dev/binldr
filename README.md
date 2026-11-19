@@ -1,57 +1,98 @@
 # binldr
 
-`binldr` is a PS4 TCP and HTTP binary payload receiver, available as both a
-standalone payload and a reusable static library. It accepts raw TCP uploads
-or `POST /` and `POST /payload` requests. ELF and PS4 SELF payloads are
-forwarded to the upstream `elfldr` service on port 9021. If that service is not
-listening, `binldr` starts the upstream PS4 loader from its bundled BIN image.
-Other binary formats run through a bundled BIN runner launched by elfldr.
+`binldr` is a PS4 TCP and HTTP receiver for binary payloads. It accepts raw TCP
+uploads and HTTP `POST /` or `POST /payload` requests. ELF and SELF files are
+forwarded to `elfldr` on port 9021, except dependency-free legacy ELF payloads,
+which are laid out and started by the bundled runner. If `elfldr` is not
+running, binldr starts it from its bundled bootstrap image. Raw BIN payloads
+and BIN bootstrappers are started by the bundled runner.
 
-The library exposes lifecycle and binary handling callbacks. Every ELF and
-PS4 SELF is sent to elfldr on port 9021, which binldr starts from its bundled
-upstream bootstrapper when needed. Other inputs, including legacy PS4 payload
-BINs and flat BIN bootstrappers such as `elfldr-ps4.bin`, are staged briefly
-and started by a bundled runner ELF through elfldr. The runner removes its
-staging file after opening it. The standalone payload uses
-elfldr's console/kernel log format for its startup lines and sends the matching
-serving notification. Its listener defaults to port 9090 and accepts
-`-p PORT`; the ELF loader port stays fixed at 9021.
+The standalone payload listens on port 9090 by default. Use `-p PORT` to change
+that port; port 9021 is reserved for `elfldr`.
 
 ## Build
 
-Install the [payload SDK][sdk] and Git. Set the SDK path and run any of these root-level targets:
+`binldr` currently targets PS4. Install the [payload SDK][sdk] and Git on a
+Debian-based POSIX system, then set the SDK path and build:
 
-```sh
-export PS4_PAYLOAD_SDK=/opt/ps-payload-sdk/ps4
-make all
-make clean
+```console
+sudo apt-get install git
+export PS4_PAYLOAD_SDK=/opt/ps-payload-dev-sdk/ps4
+make
 ```
 
 The build fetches [elfldr][elfldr] and [lib-ptrace][ptrace] into `deps/`, builds
-the upstream PS4 loader, embeds its `elfldr-ps4.bin` bootstrap image, then builds
-`build/binldr.elf` and `build/lib-binldr.a`.
+the PS4 `elfldr-ps4.bin` bootstrap image, and produces:
 
-To use existing checkouts:
+- `build/binldr.elf` — standalone server payload.
+- `build/binldr.bin` — BIN bootstrapper containing the standalone payload.
+- `build/lib-binldr.a` — static library for use by other payloads.
 
-```sh
+To use existing dependency checkouts, set `ELFLDR_DIR` and `PTRACE_DIR`:
+
+```console
 make ELFLDR_DIR=~/src/elfldr PTRACE_DIR=~/src/lib-ptrace
 ```
 
-## API
+GitHub Actions builds the PS4 outputs and uploads them together as the
+`binldr-ps4` artifact.
 
-Include `binldr.h`, create a server with a nonzero listening port, then start
-and stop it with `binldr_start` and `binldr_stop`. Link `build/lib-binldr.a`
-and the PS4 system libraries. ELF and SELF requests are sent to `elfldr` on
-fixed port 9021. `handle_binary` receives other uploads when provided;
-otherwise, binldr starts them with its bundled runner through elfldr.
+## Run
 
-The listener port, maximum upload size, request timeout, payload callback, and
-callback data are supplied through `binldr_config_t`.
+Start a PS4 ELF loader on port 9020, then send the BIN bootstrapper:
+
+```console
+PS4_HOST=ps4
+PS4_PORT=9020
+nc -q0 "$PS4_HOST" "$PS4_PORT" < build/binldr.bin
+```
+
+The server then listens on port 9090. Send a binary payload over raw TCP:
+
+```console
+nc -q0 "$PS4_HOST" 9090 < payload.bin
+```
+
+Or upload it with HTTP:
+
+```console
+curl --data-binary @payload.bin "http://$PS4_HOST:9090/payload"
+```
+
+Modern ELF and SELF uploads go to elfldr on port 9021. Legacy ELF and raw BIN
+uploads are started by the bundled runner. The runner uses the same entry
+thread and sysmodule setup as nexHEN's PS4 BIN runner. The HTTP status endpoint
+is available at `/`. Raw BIN files must be flat x86-64 payload images whose
+entry point is at byte zero, as produced by the PS4 payload SDKs; custom
+containers or encrypted formats need a format-specific callback.
+
+## Library
+
+Include `binldr.h`, create a server with a `binldr_config_t`, then call
+`binldr_start` and `binldr_stop`. The configuration sets the listening port,
+maximum upload size, request timeout, and optional callback for handling binary
+formats other than ELF and SELF. Link `build/lib-binldr.a` with the required PS4
+system libraries. Before starting the server, `binldr_set_sysmodules` can be
+used to provide public IDs (`sceSysmoduleLoadModule`) or internal IDs
+(`sceSysmoduleLoadModuleInternal`) required by the BIN payloads it will receive.
+If any requested module fails to load, binldr does not enter that payload. The
+runner's built-in common-module preloads remain best-effort for firmware and
+payload compatibility. For example, pass `BINLDR_SYSMODULE_MESSAGE_DIALOG`
+with `internal` set to `0`, or `BINLDR_SYSMODULE_INTERNAL_NET_CTL` with
+`internal` set to `1`.
+
+```c
+binldr_sysmodule_t modules[] = {
+    { BINLDR_SYSMODULE_MESSAGE_DIALOG, 0 },
+    { BINLDR_SYSMODULE_INTERNAL_NET_CTL, 1 },
+};
+binldr_set_sysmodules(server, modules, sizeof(modules) / sizeof(modules[0]));
+```
 
 ## License
 
-`binldr` is licensed under the GPLv3 or any later version. The bundled loader
-image is built from the upstream GPL-licensed [elfldr][elfldr] source.
+`binldr` is licensed under the GPLv3 or any later version. The bundled ELF
+loader image is built from [elfldr][elfldr].
 
 [sdk]: https://github.com/ps-payload-dev/sdk
 [elfldr]: https://github.com/ps-payload-dev/elfldr
