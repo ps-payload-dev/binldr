@@ -1,0 +1,10 @@
+# Copyright (C) 2026 ItsJokerZz
+# Licensed under the GNU General Public License v3 or later.
+
+*~
+*.o
+*.a
+*.elf
+*.bin
+build/
+deps/
