@@ -25,8 +25,17 @@ jobs:
         working-directory: sdk
         run: |
           sudo apt update
-          sudo apt install clang-18 lld-18
+          sudo apt install clang-18 lld-18 libc++-18-dev
           make DESTDIR=${{ runner.tool_cache }}/ps-payload-sdk clean install
+          sdk=${{ runner.tool_cache }}/ps-payload-sdk/ps4
+          libcxx_headers=$(find /usr -type f -path '*/include/c++/v1/atomic' -print -quit)
+          if [ -z "$libcxx_headers" ]; then
+            echo "libc++ headers were not found after installing libc++-18-dev" >&2
+            exit 1
+          fi
+          libcxx_headers=${libcxx_headers%/atomic}
+          install -d "$sdk/target/include/c++/v1"
+          cp -a "$libcxx_headers/." "$sdk/target/include/c++/v1/"
           echo PS4_PAYLOAD_SDK=${{ runner.tool_cache }}/ps-payload-sdk/ps4 >> $GITHUB_ENV
 
       - name: Checkout binldr
