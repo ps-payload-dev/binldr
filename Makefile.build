@@ -1,0 +1,68 @@
+.DEFAULT_GOAL := all
+CFLAGS := -O2 -Wall -Wextra -fPIC -Iheaders -I$(PTRACE_DIR)/headers -I$(PTRACE_DIR)/include -I$(ELFLDR_DIR)/$(ELFLDR_HEADERS)
+CXXFLAGS := $(CFLAGS) -std=c++17 -pthread
+LDFLAGS := -pthread -lunwind -lc++abi -lc++ -lc -lSceLibcInternal -lSceNet -lkernel_web -lSceSysmodule
+LDLIBS :=
+
+LIBRARY := $(BUILD_DIR)/lib-binldr.a
+PAYLOAD := $(BUILD_DIR)/binldr.elf
+BOOTSTRAPPER := $(BUILD_DIR)/binldr.bin
+LIB_OBJECTS := $(OBJ_DIR)/server.o $(OBJ_DIR)/elfldr_blob.o $(OBJ_DIR)/binrunner_blob.o
+PAYLOAD_OBJECTS := $(OBJ_DIR)/main.o $(OBJ_DIR)/notify.o
+
+all: $(LIBRARY) $(PAYLOAD) $(BOOTSTRAPPER)
+
+deps: $(ELFLDR_BIN)
+
+$(ELFLDR_DIR)/.git:
+	@mkdir -p $(DEPS_DIR)
+	git clone --depth 1 $(ELFLDR_REPO) $(ELFLDR_DIR)
+
+$(PTRACE_CHECKOUT): | $(ELFLDR_DIR)/.git
+	@mkdir -p $(DEPS_DIR)
+	@if [ ! -d "$(PTRACE_DIR)/.git" ]; then git clone --depth 1 $(PTRACE_REPO) $(PTRACE_DIR); fi
+
+$(PTRACE_LIB): $(PTRACE_CHECKOUT)
+	$(MAKE) -C $(PTRACE_DIR) PLATFORM=ps4 PS4_PAYLOAD_SDK=$(PS4_PAYLOAD_SDK) all
+
+$(ELFLDR_BIN): $(ELFLDR_DIR)/.git $(PTRACE_LIB)
+	$(MAKE) -C $(ELFLDR_DIR) ps4 PS4_PAYLOAD_SDK=$(PS4_PAYLOAD_SDK) PTRACE_DIR=$(abspath $(PTRACE_DIR))
+
+$(BUILD_DIR) $(OBJ_DIR):
+	mkdir -p $@
+
+$(OBJ_DIR)/server.o: source/server.cpp headers/binldr.h $(PTRACE_CHECKOUT) $(BINRUNNER) | $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(OBJ_DIR)/elfldr_blob.o: source/elfldr_blob.S $(ELFLDR_BIN) | $(OBJ_DIR)
+	$(CC) -fPIC -DBINLDR_ELFLDR_BIN='"$(abspath $(ELFLDR_BIN))"' -c $< -o $@
+
+$(BINRUNNER): source/binrunner.c headers/sysmodule_ids.h | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -std=gnu11 -pthread $< -pthread -lSceSysmodule -lkernel_web -lSceLibcInternal -lc -o $@
+
+$(OBJ_DIR)/binrunner_blob.o: source/binrunner_blob.S $(BINRUNNER) | $(OBJ_DIR)
+	$(CC) -fPIC -DBINLDR_BINRUNNER_ELF='"$(abspath $(BINRUNNER))"' -c $< -o $@
+
+$(LIBRARY): $(LIB_OBJECTS) | $(BUILD_DIR)
+	$(AR) rcs $@ $^
+
+$(OBJ_DIR)/main.o: source/main.cpp headers/binldr.h $(PTRACE_CHECKOUT) $(ELFLDR_DIR)/$(ELFLDR_HEADERS)/notify.h | $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(OBJ_DIR)/notify.o: $(ELFLDR_NOTIFY) $(ELFLDR_DIR)/$(ELFLDR_HEADERS)/notify.h | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(PAYLOAD): $(PAYLOAD_OBJECTS) $(LIBRARY) $(PTRACE_LIB)
+	$(CXX) $(PAYLOAD_OBJECTS) $(LIBRARY) $(PTRACE_LIB) $(LDFLAGS) $(LDLIBS) -o $@
+
+$(OBJ_DIR)/bootstrap-bin.o: source/bootstrap-bin.c headers/asset.h $(PAYLOAD) | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -fPIC -fno-stack-protector -c $< -o $@
+
+$(OBJ_DIR)/bootstrap-bin.elf: $(OBJ_DIR)/bootstrap-bin.o source/bin_x86_64.x
+	$(LD) -T source/bin_x86_64.x -o $@ $<
+
+$(BOOTSTRAPPER): $(OBJ_DIR)/bootstrap-bin.elf
+	$(OBJCOPY) -O binary --only-section=.text $< $@
+
+clean:
+	rm -rf build

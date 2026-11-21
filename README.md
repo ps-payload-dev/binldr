@@ -24,9 +24,10 @@ make
 The build fetches [elfldr][elfldr] and [lib-ptrace][ptrace] into `deps/`, builds
 the PS4 `elfldr-ps4.bin` bootstrap image, and produces:
 
-- `build/binldr.elf` — standalone server payload.
-- `build/binldr.bin` — BIN bootstrapper containing the standalone payload.
-- `build/lib-binldr.a` — static library for use by other payloads.
+- `build/ps4/binldr.elf` — standalone server payload.
+- `build/ps4/binldr.bin` — BIN bootstrapper containing the standalone payload.
+- `build/ps4/lib-binldr.a` — static library for use by other payloads.
+Object files are written to `build/ps4/objects/`.
 
 To use existing dependency checkouts, set `ELFLDR_DIR` and `PTRACE_DIR`:
 
@@ -44,7 +45,7 @@ Start a PS4 ELF loader on port 9020, then send the BIN bootstrapper:
 ```console
 PS4_HOST=ps4
 PS4_PORT=9020
-nc -q0 "$PS4_HOST" "$PS4_PORT" < build/binldr.bin
+nc -q0 "$PS4_HOST" "$PS4_PORT" < build/ps4/binldr.bin
 ```
 
 The server then listens on port 9090. Send a binary payload over raw TCP:
@@ -71,7 +72,7 @@ containers or encrypted formats need a format-specific callback.
 Include `binldr.h`, create a server with a `binldr_config_t`, then call
 `binldr_start` and `binldr_stop`. The configuration sets the listening port,
 maximum upload size, request timeout, and optional callback for handling binary
-formats other than ELF and SELF. Link `build/lib-binldr.a` with the required PS4
+formats other than ELF and SELF. Link `build/ps4/lib-binldr.a` with the required PS4
 system libraries. Before starting the server, `binldr_set_sysmodules` can be
 used to provide public IDs (`sceSysmoduleLoadModule`) or internal IDs
 (`sceSysmoduleLoadModuleInternal`) required by the BIN payloads it will receive.

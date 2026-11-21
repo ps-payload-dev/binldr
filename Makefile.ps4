@@ -1,0 +1,19 @@
+PS4_PAYLOAD_SDK ?= /opt/ps-payload-sdk/ps4
+ELFLDR_REPO ?= https://github.com/ps-payload-dev/elfldr.git
+PTRACE_REPO ?= https://github.com/ps-payload-dev/lib-ptrace.git
+DEPS_DIR ?= deps
+ELFLDR_DIR ?= $(DEPS_DIR)/elfldr
+PTRACE_DIR ?= $(DEPS_DIR)/lib-ptrace
+BUILD_DIR ?= build/ps4
+OBJ_DIR := $(BUILD_DIR)/objects
+
+ELFLDR_HEADERS := $(if $(wildcard $(ELFLDR_DIR)/headers/shared/notify.h),headers/shared,shared)
+ELFLDR_SOURCE_ROOT := $(if $(wildcard $(ELFLDR_DIR)/source/shared/notify.c),source,.)
+ELFLDR_BIN := $(ELFLDR_DIR)/build/ps4/elfldr-ps4.bin
+ELFLDR_NOTIFY := $(ELFLDR_DIR)/$(ELFLDR_SOURCE_ROOT)/shared/notify.c
+BINRUNNER := $(OBJ_DIR)/binrunner.elf
+PTRACE_CHECKOUT := $(PTRACE_DIR)/.git
+PTRACE_LIB := $(PTRACE_DIR)/build/ps4/libptrace.a
+
+include $(PS4_PAYLOAD_SDK)/toolchain/orbis.mk
+include Makefile.build

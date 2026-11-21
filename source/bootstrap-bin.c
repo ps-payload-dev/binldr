@@ -17,7 +17,7 @@ along with this program; see the file COPYING. If not, see
 
 #include "asset.h"
 
-INCASSET(binldr_elf, "build/binldr.elf");
+INCASSET(binldr_elf, "build/ps4/binldr.elf");
 
 #define MAP_PRIVATE 0x0002
 #define MAP_ANONYMOUS 0x1000

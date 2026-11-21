@@ -25,18 +25,11 @@ jobs:
         working-directory: sdk
         run: |
           sudo apt update
-          sudo apt install clang-18 lld-18 libc++-18-dev
+          sudo apt install clang-18 lld-18 cmake wget xz-utils
           make DESTDIR=${{ runner.tool_cache }}/ps-payload-sdk clean install
-          sdk=${{ runner.tool_cache }}/ps-payload-sdk/ps4
-          libcxx_headers=$(find /usr -type f -path '*/include/c++/v1/atomic' -print -quit)
-          if [ -z "$libcxx_headers" ]; then
-            echo "libc++ headers were not found after installing libc++-18-dev" >&2
-            exit 1
-          fi
-          libcxx_headers=${libcxx_headers%/atomic}
-          install -d "$sdk/target/include/c++/v1"
-          cp -a "$libcxx_headers/." "$sdk/target/include/c++/v1/"
-          echo PS4_PAYLOAD_SDK=${{ runner.tool_cache }}/ps-payload-sdk/ps4 >> $GITHUB_ENV
+          export PS4_PAYLOAD_SDK=${{ runner.tool_cache }}/ps-payload-sdk/ps4
+          ./libcxx.sh ps4
+          echo PS4_PAYLOAD_SDK=$PS4_PAYLOAD_SDK >> $GITHUB_ENV
 
       - name: Checkout binldr
         uses: actions/checkout@v4
@@ -49,7 +42,7 @@ jobs:
         with:
           name: binldr-ps4
           path: |
-            build/binldr.elf
-            build/binldr.bin
-            build/lib-binldr.a
+            build/ps4/binldr.elf
+            build/ps4/binldr.bin
+            build/ps4/lib-binldr.a
           if-no-files-found: error
