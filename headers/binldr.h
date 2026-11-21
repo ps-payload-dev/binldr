@@ -48,8 +48,6 @@ binldr_server_t *binldr_create(const binldr_config_t *config);
 int binldr_start(binldr_server_t *server);
 int binldr_stop(binldr_server_t *server);
 int binldr_is_running(const binldr_server_t *server);
-/* Set up to 32 required module loads before start; failure blocks BIN entry.
- */
 int binldr_set_sysmodules(binldr_server_t *server,
                           const binldr_sysmodule_t *modules, size_t count);
 void binldr_destroy(binldr_server_t *server);

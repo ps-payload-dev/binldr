@@ -10,33 +10,41 @@ and BIN bootstrappers are started by the bundled runner.
 The standalone payload listens on port 9090 by default. Use `-p PORT` to change
 that port; port 9021 is reserved for `elfldr`.
 
-## Build
+`binldr` is not a port of a project by [John Törnblom](https://github.com/john-tornblom),
+but it builds on his work. It bundles an ELF loader built from [elfldr][elfldr],
+which combines his [PS4 elfldr project][ps4-upstream] and
+[PS5 elfldr project][ps5-upstream], and it builds with the unified
+[payload SDK][sdk].
 
-`binldr` currently targets PS4. Install the [payload SDK][sdk] and Git on a
+## Building
+
+`binldr` currently targets the PS4. Install the [payload SDK][sdk] and Git on a
 Debian-based POSIX system, then set the SDK path and build:
 
 ```console
 sudo apt-get install git
-export PS4_PAYLOAD_SDK=/opt/ps-payload-dev-sdk/ps4
-make
+export PS4_PAYLOAD_SDK=/opt/ps-payload-sdk/ps4
+make PLATFORM=ps4
 ```
 
 The build fetches [elfldr][elfldr] and [lib-ptrace][ptrace] into `deps/`, builds
 the PS4 `elfldr-ps4.bin` bootstrap image, and produces:
 
-- `build/ps4/binldr.elf` — standalone server payload.
-- `build/ps4/binldr.bin` — BIN bootstrapper containing the standalone payload.
-- `build/ps4/lib-binldr.a` — static library for use by other payloads.
-Object files are written to `build/ps4/objects/`.
+- `build/ps4/binldr.elf` is the standalone server payload.
+- `build/ps4/binldr.bin` is a BIN bootstrapper containing the standalone payload.
+- `build/ps4/lib-binldr.a` is a static library for use by other payloads.
+
+Object files are written to `build/ps4/objects/`. Clean with
+`make PLATFORM=ps4 clean` and format the sources with `make PLATFORM=ps4 format`.
 
 To use existing dependency checkouts, set `ELFLDR_DIR` and `PTRACE_DIR`:
 
 ```console
-make ELFLDR_DIR=~/src/elfldr PTRACE_DIR=~/src/lib-ptrace
+make PLATFORM=ps4 ELFLDR_DIR=~/src/elfldr PTRACE_DIR=~/src/lib-ptrace
 ```
 
-GitHub Actions builds the PS4 outputs and uploads them together as the
-`binldr-ps4` artifact.
+One GitHub Actions workflow builds the PS4 outputs with the [payload SDK][sdk]
+and uploads them together as the `binldr-ps4` artifact.
 
 ## Run
 
@@ -90,6 +98,13 @@ binldr_sysmodule_t modules[] = {
 binldr_set_sysmodules(server, modules, sizeof(modules) / sizeof(modules[0]));
 ```
 
+## Reporting Bugs
+
+If you encounter problems with binldr, please [file a github issue][issues].
+If you plan on sending pull requests which affect more than a few lines of
+code, please file an issue before you start to work on your changes. This will
+allow us to discuss the solution properly before you commit time and effort.
+
 ## License
 
 `binldr` is licensed under the GPLv3 or any later version. The bundled ELF
@@ -98,3 +113,6 @@ loader image is built from [elfldr][elfldr].
 [sdk]: https://github.com/ps-payload-dev/sdk
 [elfldr]: https://github.com/ps-payload-dev/elfldr
 [ptrace]: https://github.com/ps-payload-dev/lib-ptrace
+[ps4-upstream]: https://github.com/ps4-payload-dev/elfldr
+[ps5-upstream]: https://github.com/ps5-payload-dev/elfldr
+[issues]: https://github.com/ps-payload-dev/binldr/issues/new

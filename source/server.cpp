@@ -223,7 +223,8 @@ start_elfldr(uint16_t port) {
     return false;
   memcpy(image, binldr_elfldr_bin, loader_size);
 
-  struct sigaction previous{}, ignored{};
+  struct sigaction previous {
+  }, ignored{};
   ignored.sa_handler = SIG_IGN;
   sigemptyset(&ignored.sa_mask);
   bool changed_signal = sigaction(SIGCHLD, &ignored, &previous) == 0;
@@ -369,8 +370,6 @@ relay_binary_to_runner(binldr_server_t *server, const uint8_t *payload,
     }
   }
   const bool pending = sent && !ready && timed_out;
-  // The runner can still start after its acknowledgement deadline. Keep the
-  // staged payload only for that timeout; an early close means it failed.
   if(!ready && !pending)
     unlink(path);
   close(fd);

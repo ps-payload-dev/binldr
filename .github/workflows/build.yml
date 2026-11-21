@@ -2,6 +2,8 @@ name: Build
 
 on:
   push:
+    branches: ["**"]
+    tags: ["*"]
     paths-ignore:
       - "**/*.md"
       - "**/*.txt"
@@ -11,17 +13,21 @@ on:
       - "**/*.txt"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout payload SDK
+      - name: Checkout SDK
         uses: actions/checkout@v4
         with:
           repository: ps-payload-dev/sdk
           path: sdk
 
-      - name: Set up PS4 payload SDK
+      - name: Set up PS4 SDK
         working-directory: sdk
         run: |
           sudo apt update
@@ -37,10 +43,10 @@ jobs:
       - name: Checkout binldr
         uses: actions/checkout@v4
 
-      - name: Build binldr
-        run: make all
+      - name: Build PS4
+        run: make PLATFORM=ps4 clean all
 
-      - name: Upload binldr
+      - name: Upload PS4 build
         uses: actions/upload-artifact@v4
         with:
           name: binldr-ps4
@@ -49,3 +55,26 @@ jobs:
             build/ps4/binldr.bin
             build/ps4/lib-binldr.a
           if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: binldr-*
+          merge-multiple: true
+          path: .
+
+      - name: Create GitHub Release (pre-release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          prerelease: true
+          files: |
+            binldr.elf
+            binldr.bin

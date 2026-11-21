@@ -6,6 +6,15 @@ body:
   - type: markdown
     attributes:
       value: For larger changes, open an issue before starting work so the approach can be discussed.
+  - type: dropdown
+    id: console
+    attributes:
+      label: Console
+      options:
+        - PS4
+        - Not console specific
+    validations:
+      required: true
   - type: textarea
     id: use_case
     attributes:

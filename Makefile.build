@@ -1,3 +1,5 @@
+.PHONY: all clean deps format
+
 .DEFAULT_GOAL := all
 CFLAGS := -O2 -Wall -Wextra -fPIC -Iheaders -I$(PTRACE_DIR)/headers -I$(PTRACE_DIR)/include -I$(ELFLDR_DIR)/$(ELFLDR_HEADERS)
 CXXFLAGS := $(CFLAGS) -std=c++17 -pthread
@@ -26,7 +28,7 @@ $(PTRACE_LIB): $(PTRACE_CHECKOUT)
 	$(MAKE) -C $(PTRACE_DIR) PLATFORM=ps4 PS4_PAYLOAD_SDK=$(PS4_PAYLOAD_SDK) all
 
 $(ELFLDR_BIN): $(ELFLDR_DIR)/.git $(PTRACE_LIB)
-	$(MAKE) -C $(ELFLDR_DIR) ps4 PS4_PAYLOAD_SDK=$(PS4_PAYLOAD_SDK) PTRACE_DIR=$(abspath $(PTRACE_DIR))
+	$(MAKE) -C $(ELFLDR_DIR) PLATFORM=ps4 PS4_PAYLOAD_SDK=$(PS4_PAYLOAD_SDK) PTRACE_DIR=$(abspath $(PTRACE_DIR)) all
 
 $(BUILD_DIR) $(OBJ_DIR):
 	mkdir -p $@
@@ -65,4 +67,7 @@ $(BOOTSTRAPPER): $(OBJ_DIR)/bootstrap-bin.elf
 	$(OBJCOPY) -O binary --only-section=.text $< $@
 
 clean:
-	rm -rf build
+	rm -rf $(BUILD_DIR)
+
+format:
+	clang-format -i $(wildcard source/*.c source/*.cpp headers/*.h)

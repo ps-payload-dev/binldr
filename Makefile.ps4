@@ -1,3 +1,4 @@
+PLATFORM := ps4
 PS4_PAYLOAD_SDK ?= /opt/ps-payload-sdk/ps4
 ELFLDR_REPO ?= https://github.com/ps-payload-dev/elfldr.git
 PTRACE_REPO ?= https://github.com/ps-payload-dev/lib-ptrace.git

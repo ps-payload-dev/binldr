@@ -1,27 +1,10 @@
-# Copyright (C) 2026 ItsJokerZz
-#
-# This program is free software; you can redistribute it and/or modify it
-# under the terms of the GNU General Public License as published by the
-# Free Software Foundation; either version 3 of the License, or (at your
-# option) any later version.
-#
-# This program is distributed in the hope that it will be useful, but
-# WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-# General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program; see the file COPYING. If not, see
-# <http://www.gnu.org/licenses/>.
+* text=auto eol=lf
 
-*.cpp text eol=lf
-*.c text eol=lf
-*.h text eol=lf
-*.S text eol=lf
-Makefile text eol=lf
-*.mk text eol=lf
-*.sh text eol=lf
-*.md text eol=lf
-*.gitignore text eol=lf
-*.gitattributes text eol=lf
-* text=auto
+*.png binary
+*.ico binary
+*.pkg binary
+*.sprx binary
+*.elf binary
+*.bin binary
+*.a binary
+*.o binary

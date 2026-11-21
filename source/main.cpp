@@ -18,6 +18,7 @@ along with this program; see the file COPYING. If not, see
 #include "binldr.h"
 
 #include "log.h"
+#include <sys/types.h>
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <netinet/in.h>

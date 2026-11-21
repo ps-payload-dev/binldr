@@ -5,7 +5,16 @@ labels: [bug]
 body:
   - type: markdown
     attributes:
-      value: Include the exact steps and any error output you can provide.
+      value: Include the console, exact steps, and any error output you can provide.
+  - type: dropdown
+    id: console
+    attributes:
+      label: Console
+      options:
+        - PS4
+        - Not console specific
+    validations:
+      required: true
   - type: textarea
     id: steps
     attributes:
@@ -31,12 +40,13 @@ body:
   - type: input
     id: firmware
     attributes:
-      label: PS4 firmware
+      label: Console firmware
       placeholder: e.g. 9.00
   - type: input
     id: loader
     attributes:
       label: ELF loader or exploit
+      description: If the problem happens while running on console.
   - type: input
     id: version
     attributes:
