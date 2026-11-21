@@ -25,7 +25,10 @@ jobs:
         working-directory: sdk
         run: |
           sudo apt update
-          sudo apt install clang-18 lld-18 cmake wget xz-utils
+          wget https://apt.llvm.org/llvm.sh
+          chmod +x llvm.sh
+          sudo ./llvm.sh 23
+          sudo apt install llvm-23 llvm-23-dev clang-23 lld-23 cmake wget xz-utils
           make DESTDIR=${{ runner.tool_cache }}/ps-payload-sdk clean install
           export PS4_PAYLOAD_SDK=${{ runner.tool_cache }}/ps-payload-sdk/ps4
           ./libcxx.sh ps4
