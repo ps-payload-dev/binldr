@@ -8,7 +8,7 @@ PTRACE_DIR ?= $(DEPS_DIR)/lib-ptrace
 BUILD_DIR ?= build/ps4
 OBJ_DIR := $(BUILD_DIR)/objects
 
-ELFLDR_HEADERS := headers/shared
+ELFLDR_HEADERS := headers
 ELFLDR_SOURCE_ROOT := source
 ELFLDR_BIN := $(ELFLDR_DIR)/build/ps4/elfldr-ps4.bin
 ELFLDR_NOTIFY := $(ELFLDR_DIR)/$(ELFLDR_SOURCE_ROOT)/shared/notify.c
