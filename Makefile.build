@@ -1,7 +1,7 @@
 .PHONY: all clean deps format
 
 .DEFAULT_GOAL := all
-CFLAGS := -O2 -Wall -Wextra -fPIC -Iheaders -I$(PTRACE_DIR)/headers -I$(PTRACE_DIR)/include -I$(ELFLDR_DIR)/$(ELFLDR_HEADERS)
+CFLAGS := -O2 -Wall -Wextra -fPIC -Iheaders -I$(PTRACE_DIR)/headers -I$(ELFLDR_DIR)/$(ELFLDR_HEADERS)
 CXXFLAGS := $(CFLAGS) -std=c++17 -pthread
 LDFLAGS := -pthread -lunwind -lc++abi -lc++ -lc -lSceLibcInternal -lSceNet -lkernel_web -lSceSysmodule
 LDLIBS :=
