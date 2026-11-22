@@ -52,6 +52,10 @@ int binldr_set_sysmodules(binldr_server_t *server,
                           const binldr_sysmodule_t *modules, size_t count);
 void binldr_destroy(binldr_server_t *server);
 
+/* Hand an ELF to elfldr (started if needed) so that it runs as a process of
+   its own, which can be killed without touching the process that called. */
+int binldr_spawn(const uint8_t *elf, size_t size);
+
 #ifdef __cplusplus
 }
 #endif

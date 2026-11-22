@@ -50,7 +50,7 @@ jobs:
         with:
           name: binldr-ps4
           path: |
-            build/ps4/binldr.elf
-            build/ps4/binldr.bin
-            build/ps4/lib-binldr.a
+            build/binldr.elf
+            build/binldr.bin
+            build/lib-binldr.a
           if-no-files-found: error

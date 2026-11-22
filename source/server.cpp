@@ -273,6 +273,19 @@ relay_to_elfldr(binldr_server_t *server, const uint8_t *payload, size_t size) {
   return sent;
 }
 
+extern "C" int
+binldr_spawn(const uint8_t *elf, size_t size) {
+  if(!ensure_elfldr())
+    return -1;
+  int fd = connect_loopback(ELFLDR_PORT, 15);
+  if(fd < 0)
+    return -1;
+  bool sent = send_all(fd, elf, size);
+  shutdown(fd, SHUT_WR);
+  close(fd);
+  return sent ? 0 : -1;
+}
+
 static bool
 relay_binary_to_runner(binldr_server_t *server, const uint8_t *payload,
                        size_t size) {

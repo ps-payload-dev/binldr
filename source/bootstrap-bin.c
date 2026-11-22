@@ -15,9 +15,18 @@ You should have received a copy of the GNU General Public License
 along with this program; see the file COPYING. If not, see
 <http://www.gnu.org/licenses/>.  */
 
-#include "asset.h"
+/* The payload ELF to embed, passed by Makefile.bin as BOOT_ELF. */
+#ifndef BOOT_ELF
+#error BOOT_ELF is undefined
+#endif
 
-INCASSET(binldr_elf, "build/ps4/binldr.elf");
+__asm__(".section .rodata\n"
+        ".global payload_elf\n"
+        ".align 16\n"
+        "payload_elf:\n"
+        ".incbin \"" BOOT_ELF "\"\n"
+        ".previous\n");
+extern const unsigned char payload_elf[];
 
 #define MAP_PRIVATE 0x0002
 #define MAP_ANONYMOUS 0x1000
@@ -82,9 +91,6 @@ typedef struct {
   long r_addend;
 } Elf64_Rela;
 
-extern unsigned char __bss_start[] __attribute__((weak));
-extern unsigned char __bss_end[] __attribute__((weak));
-
 static void *
 memcpy(void *dest, const void *src, unsigned long n) {
   asm __volatile__("rep movsb" : "+D"(dest), "+S"(src), "+c"(n) : : "memory");
@@ -132,7 +138,7 @@ munmap(void *addr, unsigned long len) {
 }
 
 static void
-binldr_exec(const unsigned char *elf) {
+payload_exec(const unsigned char *elf) {
   Elf64_Ehdr *ehdr = (Elf64_Ehdr *)elf;
   Elf64_Phdr *phdr = (Elf64_Phdr *)(elf + ehdr->e_phoff);
   Elf64_Shdr *shdr = (Elf64_Shdr *)(elf + ehdr->e_shoff);
@@ -203,6 +209,6 @@ binldr_exec(const unsigned char *elf) {
 
 int
 _start(void) {
-  binldr_exec(binldr_elf);
+  payload_exec(payload_elf);
   return 0;
 }

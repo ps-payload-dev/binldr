@@ -7,8 +7,12 @@ which are laid out and started by the bundled runner. If `elfldr` is not
 running, binldr starts it from its bundled bootstrap image. Raw BIN payloads
 and BIN bootstrappers are started by the bundled runner.
 
-The standalone payload listens on port 9090 by default. Use `-p PORT` to change
-that port; port 9021 is reserved for `elfldr`.
+The standalone payload is a launcher. It starts `elfldr` if needed and hands it
+the server, which then runs as a process of its own (`binldr.elf`) listening on
+port 9090, so it can be killed without touching the process that sent the BIN
+or ELF, such as a jailbreak daemon. BIN payloads already run in their own
+process, spawned by `elfldr`. Port 9021 is reserved for `elfldr`. The server
+takes `-p PORT` when it is run in-process through the library.
 
 `binldr` is not a port of a project by [John Törnblom](https://github.com/john-tornblom),
 but it builds on his work. It bundles an ELF loader built from [elfldr][elfldr],
@@ -30,11 +34,11 @@ make PLATFORM=ps4
 The build fetches [elfldr][elfldr] and [lib-ptrace][ptrace] into `deps/`, builds
 the PS4 `elfldr-ps4.bin` bootstrap image, and produces:
 
-- `build/ps4/binldr.elf` is the standalone server payload.
-- `build/ps4/binldr.bin` is a BIN bootstrapper containing the standalone payload.
-- `build/ps4/lib-binldr.a` is a static library for use by other payloads.
+- `build/binldr.elf` is the standalone server payload.
+- `build/binldr.bin` is a BIN bootstrapper containing the standalone payload.
+- `build/lib-binldr.a` is a static library for use by other payloads.
 
-Object files are written to `build/ps4/objects/`. Clean with
+Object files are written to `build/objects/`. Clean with
 `make PLATFORM=ps4 clean` and format the sources with `make PLATFORM=ps4 format`.
 
 To use existing dependency checkouts, set `ELFLDR_DIR` and `PTRACE_DIR`:
@@ -53,7 +57,7 @@ Start a PS4 ELF loader on port 9020, then send the BIN bootstrapper:
 ```console
 PS4_HOST=ps4
 PS4_PORT=9020
-nc -q0 "$PS4_HOST" "$PS4_PORT" < build/ps4/binldr.bin
+nc -q0 "$PS4_HOST" "$PS4_PORT" < build/binldr.bin
 ```
 
 The server then listens on port 9090. Send a binary payload over raw TCP:
@@ -80,7 +84,7 @@ containers or encrypted formats need a format-specific callback.
 Include `binldr.h`, create a server with a `binldr_config_t`, then call
 `binldr_start` and `binldr_stop`. The configuration sets the listening port,
 maximum upload size, request timeout, and optional callback for handling binary
-formats other than ELF and SELF. Link `build/ps4/lib-binldr.a` with the required PS4
+formats other than ELF and SELF. Link `build/lib-binldr.a` with the required PS4
 system libraries. Before starting the server, `binldr_set_sysmodules` can be
 used to provide public IDs (`sceSysmoduleLoadModule`) or internal IDs
 (`sceSysmoduleLoadModuleInternal`) required by the BIN payloads it will receive.

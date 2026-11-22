@@ -8,11 +8,11 @@ LDLIBS :=
 
 LIBRARY := $(BUILD_DIR)/lib-binldr.a
 PAYLOAD := $(BUILD_DIR)/binldr.elf
-BOOTSTRAPPER := $(BUILD_DIR)/binldr.bin
+SERVER := $(OBJ_DIR)/binldr-server.elf
 LIB_OBJECTS := $(OBJ_DIR)/server.o $(OBJ_DIR)/elfldr_blob.o $(OBJ_DIR)/binrunner_blob.o
 PAYLOAD_OBJECTS := $(OBJ_DIR)/main.o $(OBJ_DIR)/notify.o
 
-all: $(LIBRARY) $(PAYLOAD) $(BOOTSTRAPPER)
+all: $(LIBRARY) $(PAYLOAD)
 
 deps: $(ELFLDR_BIN)
 
@@ -54,17 +54,16 @@ $(OBJ_DIR)/main.o: source/main.cpp headers/binldr.h $(PTRACE_CHECKOUT) $(ELFLDR_
 $(OBJ_DIR)/notify.o: $(ELFLDR_NOTIFY) $(ELFLDR_DIR)/$(ELFLDR_HEADERS)/notify.h | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(PAYLOAD): $(PAYLOAD_OBJECTS) $(LIBRARY) $(PTRACE_LIB)
+# the server runs in a process of its own, spawned by elfldr, and the payload
+# is a launcher that hands it over
+$(SERVER): $(PAYLOAD_OBJECTS) $(LIBRARY) $(PTRACE_LIB)
 	$(CXX) $(PAYLOAD_OBJECTS) $(LIBRARY) $(PTRACE_LIB) $(LDFLAGS) $(LDLIBS) -o $@
 
-$(OBJ_DIR)/bootstrap-bin.o: source/bootstrap-bin.c headers/asset.h $(PAYLOAD) | $(OBJ_DIR)
-	$(CC) $(CFLAGS) -fPIC -fno-stack-protector -c $< -o $@
+$(OBJ_DIR)/launcher.o: source/launcher.cpp headers/binldr.h $(SERVER) $(ELFLDR_DIR)/$(ELFLDR_HEADERS)/notify.h | $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) -DBINLDR_SERVER_ELF='"$(SERVER)"' -c $< -o $@
 
-$(OBJ_DIR)/bootstrap-bin.elf: $(OBJ_DIR)/bootstrap-bin.o source/bin_x86_64.x
-	$(LD) -T source/bin_x86_64.x -o $@ $<
-
-$(BOOTSTRAPPER): $(OBJ_DIR)/bootstrap-bin.elf
-	$(OBJCOPY) -O binary --only-section=.text $< $@
+$(PAYLOAD): $(OBJ_DIR)/launcher.o $(OBJ_DIR)/notify.o $(LIBRARY) $(PTRACE_LIB)
+	$(CXX) $(OBJ_DIR)/launcher.o $(OBJ_DIR)/notify.o $(LIBRARY) $(PTRACE_LIB) $(LDFLAGS) $(LDLIBS) -o $@
 
 clean:
 	rm -rf $(BUILD_DIR)
