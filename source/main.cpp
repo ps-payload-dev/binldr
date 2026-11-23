@@ -27,6 +27,7 @@ along with this program; see the file COPYING. If not, see
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <net/if.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -40,24 +41,38 @@ static constexpr uint16_t DEFAULT_PORT = 9090;
 static void
 notify_address(uint16_t port) {
   char address[INET_ADDRSTRLEN] = "127.0.0.1";
+  char name[IFNAMSIZ] = "lo0";
   struct ifaddrs *interfaces;
+  bool found = false;
 
   if(getifaddrs(&interfaces) == 0) {
     for(struct ifaddrs *interface = interfaces; interface;
         interface = interface->ifa_next) {
+      char candidate[INET_ADDRSTRLEN];
+
       if(!interface->ifa_addr || interface->ifa_addr->sa_family != AF_INET
          || !strncmp(interface->ifa_name, "lo", 2))
         continue;
       sockaddr_in *ipv4 = reinterpret_cast<sockaddr_in *>(interface->ifa_addr);
-      inet_ntop(AF_INET, &ipv4->sin_addr, address, sizeof(address));
-      if(strncmp(address, "0.", 2))
-        break;
+      inet_ntop(AF_INET, &ipv4->sin_addr, candidate, sizeof(candidate));
+      if(!strncmp(candidate, "0.", 2))
+        continue;
+
+      bool preferred = !strncmp(interface->ifa_name, "wlan", 4)
+                    || !strncmp(interface->ifa_name, "eth", 3);
+      if(!found || preferred) {
+        snprintf(address, sizeof(address), "%s", candidate);
+        snprintf(name, sizeof(name), "%s", interface->ifa_name);
+        found = true;
+        if(preferred)
+          break;
+      }
     }
     freeifaddrs(interfaces);
   }
 
-  notify("Serving BIN loader server on %s:%u", address, port);
-  LOG_PRINTF("Serving BIN loader server on %s:%u\n", address, port);
+  notify("Serving BIN loader server on %s:%u (%s)", address, port, name);
+  LOG_PRINTF("Serving BIN loader server on %s:%u (%s)\n", address, port, name);
 }
 
 int
